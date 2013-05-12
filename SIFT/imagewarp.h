@@ -12,7 +12,7 @@
 using namespace std;
 using namespace cv;
 
-Mat warp(Mat base,Mat warped,Mat H);
-
-
+Mat warp(Mat warped,Mat scene,Mat H);
+void estimateSize(Mat warped,Mat scene,Mat H,int& newborderx,int& newbordery,int& minX,int& minY);
+int round(float n);
 #endif

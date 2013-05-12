@@ -17,7 +17,7 @@ int k  neighbor num
 matches knn's result
 int numofestimate random selected data number
 int max_iter iterative times*/
-void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<DMatch>>& matches,int k,int numofestimate,int max_iter,Mat& H,double percent,double threshold);
+void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<DMatch>>& matches,int k,int numofestimate,int max_iter,Mat& H,double percent,double threshold,vector<DMatch>& ransacMatches);
 double compute(vector<KeyPoint> keypoint1,int* index,vector<KeyPoint> keypoint2,vector<int*> candidates,vector<vector<DMatch>>& matches,int n,int estimate,Mat& H,double percentage,double threshold,vector<consensus_set>& bestconsensus);
 double leastSquare(vector<consensus_set> consensus,Mat H);
 bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<DMatch>>& matches,Mat H,double percentage,double threshold,vector<consensus_set>& consensus);

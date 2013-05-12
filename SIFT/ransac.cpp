@@ -18,7 +18,7 @@ using namespace cv;
 #define MAXLENGTH 10000000
 extern FILE* fp;
 float nums[]={3.0,2.0,2.0,2.0,3.0,-2.0};
-void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<DMatch>>& matches,int k,int numofestimate,int max_iter,Mat& H,double percent,double threshold)
+void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<DMatch>>& matches,int k,int numofestimate,int max_iter,Mat& H,double percent,double threshold,vector<DMatch>& ransacMatches)
 {
 	srand(time(NULL));
 	//srand(1);
@@ -37,7 +37,7 @@ void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<
 	U.at<float>(1,1)=3.0;
 	U.at<float>(1,2)=-2.0;
 	*/
-	while(i<50){
+	while(i<max_iter){
 		getrandNum(indexs,keypoint1.size(),k);
 		genAllCombination(k,numofestimate,candidates);
 		printf("size:%d %d i:%d\n",keypoint2.size(),matches.size(),i);
@@ -52,14 +52,16 @@ void ransac(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vector<
 		//print(keypoint1,indexs,k);
 		i++;
 		if(result!=0.0){
-			/*
-			ransacmatches.resize(consensus.size());
+			//ransacMatches.resize(consensus.size());
+			ransacMatches.resize(consensus.size());
+			fprintf(fp,"test\n");
 			for(int i=0;i<consensus.size();i++){
-				ransacmatches.at(i).resize(1);
-				ransacmatches.at(i).at(0).distance=consensus.at(i).distance;
-				ransacmatches.at(i).at(0).trainIdx=consensus.at(i).trainindex;
-				ransacmatches.at(i).at(0).queryIdx=consensus.at(i).queryindex;
-			}*/
+				ransacMatches.at(i).distance=consensus.at(i).distance;
+				ransacMatches.at(i).trainIdx=consensus.at(i).trainindex;
+				ransacMatches.at(i).queryIdx=consensus.at(i).queryindex;
+				ransacMatches.at(i).imgIdx=0;
+				//fprintf(fp,"<x,y>=< %.3f , %.3f > <u,v>=< %.3f , %.3f >\n",consensus.at(i).keypointt.pt.x,consensus.at(i).keypointt.pt.y,consensus.at(i).keypointq.pt.x,consensus.at(i).keypointq.pt.y);
+			}
 			printf("end\n");
 			break;
 		}
@@ -99,7 +101,7 @@ double compute(vector<KeyPoint> keypoint1,int* index,vector<KeyPoint> keypoint2,
 			fprintf(fp,"index2:%d point<x:%.3f y:%.3f>\n",index[j],point2.at(j).pt.x,point2.at(j).pt.y);
 		}*/
 		hasinlier=findinlier(keypoint1,keypoint2,matches,H,percentage,threshold,consensus);
-		print(consensus);
+		//print(consensus);
 		if(hasinlier){
 			/*H=reestimate(consensus,10*estimate);
 			print(H,H.rows,H.cols);
@@ -121,6 +123,8 @@ bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vec
 	//fprintf(fp,"least square\n");
 	//printf("%d %d\n",keypoint1.size(),neighborsNum);
 	float u=0.0,v=0.0,x=0.0,y=0.0,bestu=0.0,bestv=0.0,mindistance=MAXLENGTH;
+	int counter=0;
+	//number of points evaluated
 	int leastinlierNum=keypoint1.size()*percentage;
 	int inlierNum=0;
 	int queryindex=0;
@@ -135,9 +139,11 @@ bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vec
 	vector<KeyPoint> inlierp2;
 	KeyPoint bestpoint;
 	consensus_set matchpoint;
+	float meandistance=0.0,squares=0.0,std_dev=0.0;
 	//print(H,H.rows,H.cols);
-	for(int i=0;i<keypoint1.size();i++){
+	for(int i=0;i<keypoint1.size();i++,++counter){
 		mindistance=MAXLENGTH;
+		//meandistance=MAXLENGTH;
 		x=keypoint1.at(i).pt.x;
 		y=keypoint1.at(i).pt.y;
 		point1.at<float>(0,0)=x;
@@ -163,12 +169,16 @@ bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vec
 				bestv=v;
 				bestpoint=keypoint2.at(matches.at(i).at(j).queryIdx);
 				queryindex=matches.at(i).at(j).queryIdx;
-				mindistance=distance;		
+				mindistance=distance;
+				
 				//fprintf(fp,"u:%.3f v:%.3f dis:%3f\n",u,v,distance);
 			}
 			
 		}
+		
 		if(mindistance<(float)threshold){
+			meandistance+=mindistance;
+			squares+=mindistance*mindistance;
 			matchpoint.keypointt=keypoint1.at(i);
 			matchpoint.trainindex=i;
 			matchpoint.keypointq=bestpoint;
@@ -178,6 +188,9 @@ bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vec
 			inlierNum++;
 		}
 		if(keypoint1.size()-i+inlierNum<leastinlierNum){
+			meandistance/=inlierNum;
+			std_dev=sqrt(squares/inlierNum-meandistance*meandistance);
+			fflush(fp);
 			consensus.clear();
 			return false;
 		}//impossible to match
@@ -186,13 +199,19 @@ bool findinlier(vector<KeyPoint> keypoint1,vector<KeyPoint> keypoint2,vector<vec
 	}
 	//if(inlierNum>leastinlierNum/2)
 		//fprintf(fp,"inlierNum:%d\n",inlierNum);
-	if(inlierNum>leastinlierNum){
+	meandistance/=inlierNum;
+	std_dev=sqrt(squares/inlierNum-meandistance*meandistance);
+	//fprintf(fp,"mean:%.3f std_dev:%.3f\n",meandistance,std_dev);
+	//fflush(fp);
+	if(inlierNum>leastinlierNum && std_dev<threshold/5){
+		
+		fprintf(fp,"mean:%.3f std_Dev:%.3f\n",meandistance,std_dev);
 		printf("inlier>threshold\n");
 		fprintf(fp,"inlierNum:%d\n",inlierNum);
 		print(H,H.rows,H.cols);
-		print(keypoint1);
-		print(keypoint2);
-		print(consensus);
+		//print(keypoint1);
+		//print(keypoint2);
+		//print(consensus);
 		//reestimate
 		return true;
 	}
@@ -294,7 +313,7 @@ Mat constructHomography(vector<KeyPoint> point1,vector<KeyPoint> point2)
 	Mat U(2*rows,8,CV_32F);
 	Mat H(3,3,CV_32F),w,u,vt,v,eigenval,eigenvec,b(2*rows,1,CV_32F),sol;
 	float val=0.0;
-	
+
 	
 	for(int i=0;i<rows;i++){
 		U.at<float>(2*i,0)=point1.at(i).pt.x;

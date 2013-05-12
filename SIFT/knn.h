@@ -16,5 +16,5 @@ struct node{
 };
 void knn(Mat& TrainData,Mat& quertData,int k,vector<vector<DMatch>>& matches);
 bool comparator(node p,node q);
-
+void swap(node& p,node& q);
 #endif
